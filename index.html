@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Gabarito - Bottons Quadrados</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- html2pdf.js para gerar o PDF nas medidas corretas de impressão -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        /* Define as medidas físicas da página e dos bottons */
+        :root {
+            --a4-width: 210mm;
+            --a4-height: 297mm;
+            --corte-size: 71.2mm;
+            --seguro-size: 50mm;
+        }
+
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Área de pré-visualização */
+        .preview-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 2rem 1rem;
+            overflow: auto;
+            min-height: 100vh;
+        }
+
+        /* A folha A4 em si */
+        #a4-page {
+            width: var(--a4-width);
+            height: var(--a4-height);
+            background-color: white;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            display: grid;
+            /* Grid para acomodar 8 bottons (2 colunas x 4 linhas) */
+            grid-template-columns: repeat(2, var(--corte-size));
+            grid-template-rows: repeat(4, var(--corte-size));
+            /* Espaçamento: 2mm entre linhas e 10mm entre colunas para facilitar o corte */
+            gap: 2mm 10mm; 
+            justify-content: center;
+            align-content: center;
+            position: relative;
+            transform-origin: top center;
+            transition: transform 0.2s ease;
+        }
+
+        /* Cada espaço de botton */
+        .slot {
+            width: var(--corte-size);
+            height: var(--corte-size);
+            border: 0.5px solid #9ca3af; /* Linha de corte sólida externa cinza */
+            position: relative;
+            background-color: #f9fafb;
+            cursor: pointer;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.2s;
+        }
+
+        .slot:hover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+
+        /* Área de 50mm (O Botton final) */
+        .safe-zone {
+            width: var(--seguro-size);
+            height: var(--seguro-size);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 1px dashed #ef4444; /* Linha tracejada vermelha */
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Imagem inserida */
+        .content-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Faz a imagem sangrar até a linha cinza */
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            display: none;
+        }
+
+        /* Placeholder de upload individual */
+        .placeholder {
+            z-index: 2;
+            text-align: center;
+            color: #9ca3af;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,0.9);
+            z-index: 50;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body class="flex flex-col lg:flex-row h-screen">
+
+    <!-- Loading Overlay for PDF Generation -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <svg class="animate-spin h-12 w-12 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <h2 class="text-xl font-bold text-gray-800">Gerando PDF de Alta Qualidade...</h2>
+        <p class="text-gray-500 mt-2">Isso pode levar alguns segundos.</p>
+    </div>
+
+    <!-- Inputs ocultos para arquivos -->
+    <input type="file" id="globalImageInput" accept="image/png, image/jpeg, image/jpg" class="hidden">
+    <input type="file" id="individualImageInput" accept="image/png, image/jpeg, image/jpg" class="hidden">
+
+    <!-- Painel Lateral / Controles -->
+    <aside class="w-full lg:w-96 bg-white border-r border-gray-200 flex flex-col h-auto lg:h-full overflow-y-auto shrink-0 shadow-lg z-10">
+        <div class="p-6 border-b border-gray-100">
+            <h1 class="text-2xl font-bold text-gray-800">Gabarito Bottons</h1>
+            <p class="text-sm text-gray-500 mt-1">Quadrados • 50x50mm Final</p>
+        </div>
+
+        <div class="p-6 flex-1 flex flex-col gap-6">
+            <!-- Ações Globais -->
+            <div class="space-y-3">
+                <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider">Ações de Imagem</h3>
+                <button onclick="document.getElementById('globalImageInput').click()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    Aplicar imagem em TODOS
+                </button>
+                <p class="text-xs text-gray-500 text-center">Ou clique em um quadrado específico ao lado para alterar apenas ele.</p>
+                
+                <button onclick="clearAllSlots()" class="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    Limpar todos
+                </button>
+            </div>
+
+            <hr class="border-gray-100">
+
+            <!-- Opções de Impressão -->
+            <div class="space-y-3">
+                <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider">Configuração de Saída</h3>
+                
+                <label class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center h-5">
+                        <input type="checkbox" id="printSafeZone" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-sm font-medium text-gray-900">Imprimir linha vermelha (50mm)</span>
+                        <span class="text-xs text-gray-500">Geralmente mantida desmarcada para que o tracejado não apareça na borda física do botton.</span>
+                    </div>
+                </label>
+
+                <button id="btnGeneratePdf" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md flex items-center justify-center gap-2 transition-colors mt-2 text-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    Baixar PDF Pronto (A4)
+                </button>
+            </div>
+
+            <!-- Instruções -->
+            <div class="mt-auto bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <h4 class="font-bold text-blue-800 flex items-center gap-2 mb-2 text-sm">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                    Instruções Importantes
+                </h4>
+                <ul class="text-xs text-blue-900 space-y-2 list-disc pl-4 marker:text-blue-400">
+                    <li>Ao imprimir o PDF, configure a impressora para <strong>"Tamanho Real" (100%)</strong>. Nunca use "Ajustar à Página" ou o tamanho ficará menor.</li>
+                    <li>Deixe a imagem preencher todo o quadrado até a linha cinza exterior para criar uma <strong>área de sangria</strong>. Isso evita bordas brancas.</li>
+                    <li>A linha sólida cinza indica onde o cortador gráfico fará o corte.</li>
+                </ul>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Workspace Central -->
+    <main class="flex-1 relative bg-gray-200 overflow-hidden" id="workspace-container">
+        <!-- Controles de Zoom para visualização no navegador -->
+        <div class="absolute bottom-6 right-6 z-20 flex gap-2 bg-white p-2 rounded-lg shadow-md">
+            <button onclick="setZoom(zoomLevel - 0.1)" class="p-2 hover:bg-gray-100 rounded text-gray-700" title="Reduzir zoom">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"></path></svg>
+            </button>
+            <span id="zoomDisplay" class="px-2 py-1 text-sm font-medium text-gray-700 w-16 text-center leading-loose">100%</span>
+            <button onclick="setZoom(zoomLevel + 0.1)" class="p-2 hover:bg-gray-100 rounded text-gray-700" title="Aumentar zoom">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
+            </button>
+            <button onclick="fitToScreen()" class="p-2 hover:bg-gray-100 rounded text-blue-600 border-l border-gray-200 ml-1 pl-3" title="Ajustar à tela">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+            </button>
+        </div>
+
+        <div class="preview-container" id="preview-container">
+            <!-- A Folha A4 -->
+            <div id="a4-page">
+                <!-- Os 8 espaços (slots) serão injetados via JS -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const a4Page = document.getElementById('a4-page');
+        const NUM_SLOTS = 8; // 2 colunas x 4 linhas numa A4
+        let currentTargetSlot = null;
+        let zoomLevel = 1;
+
+        // 1. Inicializar Grid de Bottons
+        function initGrid() {
+            for (let i = 0; i < NUM_SLOTS; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot group';
+                slot.dataset.index = i;
+                
+                slot.innerHTML = `
+                    <img class="content-img" src="" alt="Design do Botton" />
+                    <div class="safe-zone" title="Linha tracejada delimita a face visível (50mm)"></div>
+                    <div class="placeholder group-hover:text-blue-600 transition-colors">
+                        <svg class="w-8 h-8 mb-2 opacity-60 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span class="text-xs font-semibold uppercase tracking-wider">Adicionar</span>
+                    </div>
+                `;
+
+                // Clique para upload individual
+                slot.addEventListener('click', () => {
+                    currentTargetSlot = slot;
+                    document.getElementById('individualImageInput').click();
+                });
+
+                a4Page.appendChild(slot);
+            }
+        }
+
+        // 2. Lógica de Upload de Imagem (Global)
+        document.getElementById('globalImageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const imgSrc = event.target.result;
+                const slots = document.querySelectorAll('.slot');
+                
+                slots.forEach(slot => {
+                    const img = slot.querySelector('.content-img');
+                    const placeholder = slot.querySelector('.placeholder');
+                    img.src = imgSrc;
+                    img.style.display = 'block';
+                    placeholder.style.display = 'none';
+                });
+            };
+            reader.readAsDataURL(file);
+            
+            // Limpa o input para permitir selecionar a mesma imagem novamente se necessário
+            this.value = '';
+        });
+
+        // 3. Lógica de Upload de Imagem (Individual)
+        document.getElementById('individualImageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file || !currentTargetSlot) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const imgSrc = event.target.result;
+                const img = currentTargetSlot.querySelector('.content-img');
+                const placeholder = currentTargetSlot.querySelector('.placeholder');
+                
+                img.src = imgSrc;
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+            
+            this.value = '';
+            currentTargetSlot = null;
+        });
+
+        // 4. Limpar Todos
+        function clearAllSlots() {
+            const slots = document.querySelectorAll('.slot');
+            slots.forEach(slot => {
+                const img = slot.querySelector('.content-img');
+                const placeholder = slot.querySelector('.placeholder');
+                img.src = '';
+                img.style.display = 'none';
+                placeholder.style.display = 'flex';
+            });
+        }
+
+        // 5. Geração de PDF para Impressão
+        document.getElementById('btnGeneratePdf').addEventListener('click', async function() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'flex';
+            
+            // Remove o efeito hover temporariamente para garantir consistência no PDF
+            a4Page.style.boxShadow = 'none';
+            
+            // Gerencia visibilidade da linha vermelha no PDF
+            const showSafeZone = document.getElementById('printSafeZone').checked;
+            const safeZones = document.querySelectorAll('.safe-zone');
+            if (!showSafeZone) {
+                safeZones.forEach(sz => sz.style.display = 'none');
+            }
+
+            // Remove o zoom temporariamente, html2canvas precisa do elemento em escala real
+            const previousTransform = a4Page.style.transform;
+            a4Page.style.transform = 'none';
+
+            // Aguarda renderização reflow do navegador sem o transform
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Configuração super otimizada para impressão física real (300 DPI aprox.)
+            const opt = {
+                margin:       0,
+                filename:     'gabarito_producao_bottons_quadrados.pdf',
+                image:        { type: 'jpeg', quality: 1 },
+                // scale: 4 gera uma imagem de altíssima resolução internamente
+                html2canvas:  { scale: 4, useCORS: true, letterRendering: true },
+                // Especifica a página estritamente como A4 em milímetros
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            try {
+                // Gera e salva
+                await html2pdf().set(opt).from(a4Page).save();
+            } catch (error) {
+                console.error("Erro ao gerar PDF:", error);
+                alert("Ocorreu um erro ao gerar o PDF. Tente novamente.");
+            } finally {
+                // Restaura estado da interface
+                overlay.style.display = 'none';
+                a4Page.style.boxShadow = '';
+                if (!showSafeZone) {
+                    safeZones.forEach(sz => sz.style.display = 'block');
+                }
+                // Restaura o zoom
+                a4Page.style.transform = previousTransform;
+            }
+        });
+
+        // 6. Funções de Zoom e Responsividade da View
+        function setZoom(level) {
+            zoomLevel = Math.max(0.3, Math.min(level, 2)); // Limites entre 30% e 200%
+            document.getElementById('zoomDisplay').textContent = Math.round(zoomLevel * 100) + '%';
+            a4Page.style.transform = `scale(${zoomLevel})`;
+            
+            // Ajusta altura do container para evitar scroll fantasma
+            const baseHeight = 1122.5; // Aproximadamente 297mm em pixels (96dpi)
+            document.getElementById('preview-container').style.minHeight = `${baseHeight * zoomLevel + 100}px`;
+        }
+
+        function fitToScreen() {
+            const containerWidth = document.getElementById('workspace-container').clientWidth;
+            const containerHeight = document.getElementById('workspace-container').clientHeight;
+            
+            // Margens de padding (64px)
+            const availableWidth = containerWidth - 64; 
+            const availableHeight = containerHeight - 64;
+            
+            // Tamanho base de uma folha A4 a 96DPI
+            const a4PxWidth = 793.7;
+            const a4PxHeight = 1122.5;
+
+            const scaleW = availableWidth / a4PxWidth;
+            const scaleH = availableHeight / a4PxHeight;
+            
+            // Pega a menor escala para caber inteiramente na tela
+            let bestScale = Math.min(scaleW, scaleH);
+            
+            // Mas não deixa a folha maior que o seu tamanho físico real
+            if (bestScale > 1) bestScale = 1;
+            
+            setZoom(bestScale);
+        }
+
+        // Auto-ajustar tela no carregamento e redimensionamento da janela
+        window.addEventListener('resize', () => {
+            // Usa debounce simples
+            clearTimeout(window.resizeTimer);
+            window.resizeTimer = setTimeout(fitToScreen, 200);
+        });
+
+        // Inicia
+        initGrid();
+        setTimeout(fitToScreen, 100); // Espera o layout computar as dimensões do Flexbox
+
+    </script>
+</body>
+</html>
