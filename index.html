@@ -11,9 +11,10 @@
         :root { --corte: 71.2mm; --seguro: 50mm; }
         body { background: #f1f5f9; }
         #canvas-area { width: fit-content; margin: 0 auto; }
-        .page { width: 210mm; height: 297mm; background: white; padding: 10mm; box-sizing: border-box; page-break-after: always; position: relative; }
-        .grid-container { display: grid; grid-template-columns: repeat(2, var(--corte)); grid-template-rows: repeat(4, var(--corte)); gap: 2mm; justify-content: center; }
+        .page { width: 210mm; height: 297mm; background: white; padding: 10mm; box-sizing: border-box; page-break-after: always; position: relative; display: flex; flex-direction: column; }
+        .grid-container { display: grid; grid-template-columns: repeat(2, var(--corte)); grid-template-rows: repeat(4, var(--corte)); gap: 2mm; justify-content: center; margin-bottom: auto; }
         .slot { width: var(--corte); height: var(--corte); border: 1px solid #cbd5e1; border-radius: 12px; position: relative; overflow: hidden; background: #f8fafc; transition: 0.3s; }
+        .slot:hover { box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
         .img-wrapper { position: absolute; touch-action: none; cursor: move; z-index: 2; display: flex; align-items: center; justify-content: center; left: 0; right: 0; top: 0; bottom: 0; margin: auto; }
         .img-wrapper img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .controls { position: absolute; top: 5px; right: 5px; z-index: 30; display: none; background: white; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 4px; }
@@ -59,14 +60,10 @@
                 const page = document.createElement('div');
                 page.className = 'page';
                 page.innerHTML = `
-                    <div class="mb-6 border-b-2 border-blue-900 pb-4">
-                        <h2 class="font-bold text-blue-900 text-2xl uppercase">Gabarito de Produção - Bottons Quadrados</h2>
-                        <p class="text-sm text-blue-800">Tamanho Final: 50x50mm | Corte: 71.2x71.2mm | Papel: Fotográfico 108g a 130g</p>
-                    </div>
-                    <div class="grid-container mb-8"></div>
-                    <div class="border-t-2 border-blue-900 pt-4 text-blue-900">
-                        <h3 class="font-bold mb-2 uppercase flex items-center gap-2 text-blue-900">💡 Instruções Importantes para Impressão:</h3>
-                        <div class="text-sm grid grid-cols-3 gap-4">
+                    <div class="grid-container"></div>
+                    <div class="border-t-2 border-blue-900 pt-4 text-blue-900 mt-auto">
+                        <h3 class="font-bold mb-2 uppercase flex items-center gap-2 text-blue-900 text-xs">💡 Instruções Importantes para Impressão:</h3>
+                        <div class="text-[10px] grid grid-cols-3 gap-4">
                             <p>1. Escala: Selecione <b>"Tamanho Real" (100%)</b>. Não ajuste à página.</p>
                             <p>2. Linha cinza: Indica o corte do seu cortador gráfico.</p>
                             <p>3. Linha vermelha: Área de sangria. Use o fundo da imagem até o corte cinza.</p>
