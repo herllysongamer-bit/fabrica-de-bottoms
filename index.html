@@ -10,9 +10,9 @@
     <style>
         :root { --corte: 71.2mm; --seguro: 50mm; }
         body { background: #f1f5f9; }
-        #canvas-area { width: fit-content; margin: 0 auto; }
-        .page { width: 210mm; height: 297mm; background: white; padding: 5mm; box-sizing: border-box; page-break-after: always; position: relative; display: flex; flex-direction: column; align-items: center; }
-        .grid-container { display: grid; grid-template-columns: repeat(2, var(--corte)); grid-template-rows: repeat(4, var(--corte)); gap: 0; border: 1px solid #cbd5e1; }
+        #canvas-area { margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
+        .page { background: white; padding: 2mm; box-sizing: border-box; page-break-after: always; position: relative; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+        .grid-container { display: grid; grid-template-columns: repeat(2, var(--corte)); gap: 0; border: 1px solid #cbd5e1; margin-top: 5mm; }
         .slot { width: var(--corte); height: var(--corte); border: 1px solid #cbd5e1; position: relative; overflow: hidden; background: #f8fafc; transition: 0.3s; cursor: pointer; }
         .slot:hover { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); border-color: #3b82f6; z-index: 10; }
         .img-wrapper { position: absolute; touch-action: none; cursor: move; z-index: 2; display: flex; align-items: center; justify-content: center; left: 0; right: 0; top: 0; bottom: 0; margin: auto; }
@@ -27,6 +27,13 @@
     <aside class="w-full lg:w-80 bg-white p-6 shadow-lg z-50 overflow-y-auto border-r">
         <h1 class="text-xl font-bold mb-6 text-blue-900 uppercase tracking-tight">Estúdio de Bottons</h1>
         
+        <label class="block text-sm font-medium mb-2 text-blue-900">Tamanho da Folha</label>
+        <select id="paperSize" onchange="renderPages()" class="w-full p-2 border rounded mb-4 text-blue-900">
+            <option value="a4">A4 (210 x 297mm)</option>
+            <option value="letter">Letter/Carta (216 x 279mm)</option>
+            <option value="legal">Legal/Ofício (216 x 356mm)</option>
+        </select>
+
         <label class="block text-sm font-medium mb-2 text-blue-900">Quantidade de Páginas</label>
         <input type="number" id="pageCount" value="1" min="1" max="10" class="w-full p-2 border rounded mb-4" onchange="renderPages()">
 
@@ -53,21 +60,33 @@
         let isSyncMode = false;
         let syncedData = { width: 150, height: 150, x: 0, y: 0, src: '' };
 
+        function getLayoutConfig() {
+            const size = document.getElementById('paperSize').value;
+            if(size === 'letter') return { w: 216, h: 279, rows: 3 }; // 6 slots
+            if(size === 'legal') return { w: 216, h: 356, rows: 5 };  // 10 slots
+            return { w: 210, h: 297, rows: 4 }; // A4, 8 slots
+        }
+
         function renderPages() {
             const count = parseInt(document.getElementById('pageCount').value);
+            const config = getLayoutConfig();
             const container = document.getElementById('canvas-area');
+            container.style.width = config.w + 'mm';
             container.innerHTML = '';
+            
             for(let i=0; i<count; i++) {
                 const page = document.createElement('div');
                 page.className = 'page';
+                page.style.width = config.w + 'mm';
+                page.style.height = (config.h - 1) + 'mm';
                 page.innerHTML = `
-                    <div class="grid-container"></div>
-                    <div class="border-t border-slate-200 pt-2 text-slate-500 mt-auto w-full text-center">
-                        <p class="text-[8px]">Escala 100% | Linha Cinza: Corte | Linha Vermelha: Sangria</p>
+                    <div class="grid-container" style="grid-template-rows: repeat(${config.rows}, var(--corte))"></div>
+                    <div class="border-t border-slate-200 pt-2 text-slate-500 mt-2 w-full text-center text-[8px]">
+                        Escala 100% | Linha Cinza: Corte | Linha Vermelha: Sangria
                     </div>
                 `;
                 const grid = page.querySelector('.grid-container');
-                for(let j=0; j<8; j++) {
+                for(let j=0; j<(config.rows * 2); j++) {
                     const slot = document.createElement('div');
                     slot.className = 'slot';
                     slot.innerHTML = `
@@ -76,7 +95,7 @@
                             <button onclick="changeZoom(this, 0.8)" class="p-1 hover:bg-gray-100 rounded text-blue-900"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
                             <button onclick="clearSlot(this)" class="p-1 hover:bg-red-50 text-red-500 rounded"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
                         </div>
-                        <div class="click-area" onclick="openSlot(this.parentElement)"><span class="text-[10px] text-slate-300">Coloque sua imagem aqui</span></div>
+                        <div class="click-area" onclick="openSlot(this.parentElement)"><span class="text-[10px] text-slate-300">Imagem</span></div>
                         <div class="safe-zone" style="display:${document.getElementById('toggleGrid').checked?'block':'none'}"></div>
                     `;
                     grid.appendChild(slot);
@@ -180,10 +199,11 @@
         }}});
 
         document.getElementById('btnPdf').onclick = () => {
+            const config = getLayoutConfig();
             html2pdf().set({
                 margin: 0, filename: 'gabarito_producao.pdf',
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'mm', format: [config.w, config.h], orientation: 'portrait' }
             }).from(document.getElementById('canvas-area')).save();
         };
 
