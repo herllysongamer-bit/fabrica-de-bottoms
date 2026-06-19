@@ -46,6 +46,15 @@
         </div>
 
         <button id="btnPdf" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition">Baixar PDF Profissional</button>
+
+        <div class="mt-8 border-t pt-6 text-blue-800 space-y-3">
+            <h3 class="font-bold uppercase tracking-wider text-sm mb-2 text-blue-900">💡 Dicas de Impressão</h3>
+            <ul class="text-xs space-y-2 list-disc pl-4 opacity-80">
+                <li><strong>Papel:</strong> Utilize papel fotográfico de gramatura fina (90g a 120g). Papéis muito grossos podem travar o botton.</li>
+                <li><strong>Configurações:</strong> Na sua impressora, selecione "Qualidade Alta" e configure para imprimir em "Tamanho Real" (100%), evitando que a impressora redimensione o gabarito.</li>
+                <li><strong>Secagem:</strong> Se usar jato de tinta, aguarde alguns minutos antes de cortar.</li>
+            </ul>
+        </div>
     </aside>
 
     <main class="flex-1 p-8 overflow-auto flex justify-center">
@@ -62,9 +71,10 @@
 
         function getLayoutConfig() {
             const size = document.getElementById('paperSize').value;
-            if(size === 'letter') return { w: 216, h: 279, rows: 3 }; // 6 slots
-            if(size === 'legal') return { w: 216, h: 356, rows: 5 };  // 10 slots
-            return { w: 210, h: 297, rows: 4 }; // A4, 8 slots
+            // A4: 8 slots (4x2) | Letter: 6 slots (3x2) | Legal: 8 slots (4x2)
+            if(size === 'letter') return { w: 216, h: 279, rows: 3 }; 
+            if(size === 'legal') return { w: 216, h: 356, rows: 4 };
+            return { w: 210, h: 297, rows: 4 }; 
         }
 
         function renderPages() {
